@@ -1,0 +1,1 @@
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Starig00/omega-menu-nds/main/OMEGA_MENU_NDS_v4.1.txt"))()
