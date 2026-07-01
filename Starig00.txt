@@ -1,0 +1,1261 @@
+-- Natural Disaster Survival Mobile Script v4.1
+-- Автор: Starig00
+-- Исправлен Fly (взлёт), добавлены функции скорости бега и высоты прыжка
+-- Платформа: Roblox (Mobile Delta Patch)
+
+-- Инициализация
+local Player = game:GetService("Players").LocalPlayer
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local Workspace = game:GetService("Workspace")
+local Camera = Workspace.CurrentCamera
+
+-- Переменные
+local MenuVisible = false
+local ESPEnabled = false
+local InfiniteJumpEnabled = false
+local NoclipEnabled = false
+local AttractPlayersEnabled = false
+local FlyEnabled = false
+local FlySpeed = 50
+local AttractRadius = 50
+local SelectedPlayer = nil
+local FlyBodyGyro = nil
+local FlyBodyVelocity = nil
+local FlyConnection = nil
+local WalkSpeedEnabled = false
+local WalkSpeedValue = 16
+local JumpPowerEnabled = false
+local JumpPowerValue = 50
+local DefaultWalkSpeed = 16
+local DefaultJumpPower = 50
+
+-- Цветовая схема
+local NeonPurple = Color3.fromRGB(180, 0, 255)
+local DarkPurple = Color3.fromRGB(25, 5, 45)
+local MediumPurple = Color3.fromRGB(50, 10, 80)
+local LightPurple = Color3.fromRGB(200, 100, 255)
+local WhiteColor = Color3.new(1, 1, 1)
+
+-- Сохраняем дефолтные значения
+if Player.Character and Player.Character:FindFirstChild("Humanoid") then
+    DefaultWalkSpeed = Player.Character.Humanoid.WalkSpeed
+    DefaultJumpPower = Player.Character.Humanoid.JumpPower
+end
+
+Player.CharacterAdded:Connect(function(char)
+    local humanoid = char:WaitForChild("Humanoid")
+    DefaultWalkSpeed = humanoid.WalkSpeed
+    DefaultJumpPower = humanoid.JumpPower
+    
+    -- Применяем текущие настройки к новому персонажу
+    if WalkSpeedEnabled then
+        humanoid.WalkSpeed = WalkSpeedValue
+    end
+    if JumpPowerEnabled then
+        humanoid.JumpPower = JumpPowerValue
+    end
+end)
+
+-- Создание GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = Player:WaitForChild("PlayerGui")
+ScreenGui.Name = "OmegaMenu"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- Основной фрейм
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.Size = UDim2.new(0, 340, 0, 460)
+MainFrame.Position = UDim2.new(0.5, -170, 0.5, -230)
+MainFrame.BackgroundColor3 = DarkPurple
+MainFrame.BorderSizePixel = 0
+MainFrame.Visible = false
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.ZIndex = 5
+
+-- Кнопка открытия меню
+local MenuButton = Instance.new("Frame")
+MenuButton.Name = "MenuButton"
+MenuButton.Parent = ScreenGui
+MenuButton.Size = UDim2.new(0, 55, 0, 55)
+MenuButton.Position = UDim2.new(1, -70, 0, 20)
+MenuButton.BackgroundColor3 = Color3.fromRGB(20, 2, 40)
+MenuButton.BorderSizePixel = 0
+MenuButton.ZIndex = 10
+MenuButton.Active = true
+MenuButton.ClipsDescendants = false
+
+local MenuButtonCorner = Instance.new("UICorner")
+MenuButtonCorner.Parent = MenuButton
+MenuButtonCorner.CornerRadius = UDim.new(1, 0)
+
+local MenuButtonStroke = Instance.new("UIStroke")
+MenuButtonStroke.Parent = MenuButton
+MenuButtonStroke.Color = NeonPurple
+MenuButtonStroke.Thickness = 2.5
+MenuButtonStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+-- Иконка
+local IconContainer = Instance.new("Frame")
+IconContainer.Parent = MenuButton
+IconContainer.Size = UDim2.new(0, 28, 0, 22)
+IconContainer.Position = UDim2.new(0.5, -14, 0.5, -11)
+IconContainer.BackgroundTransparency = 1
+IconContainer.ZIndex = 11
+
+for i = 1, 3 do
+    local Line = Instance.new("Frame")
+    Line.Parent = IconContainer
+    Line.Size = UDim2.new(1, 0, 0, 3)
+    Line.Position = UDim2.new(0, 0, 0, (i-1) * 9)
+    Line.BackgroundColor3 = WhiteColor
+    Line.BorderSizePixel = 0
+    Line.Name = "Line" .. i
+    Line.ZIndex = 11
+    
+    local Corner = Instance.new("UICorner")
+    Corner.Parent = Line
+    Corner.CornerRadius = UDim.new(1, 0)
+end
+
+-- Свечение
+local GlowEffect = Instance.new("Frame")
+GlowEffect.Parent = MenuButton
+GlowEffect.Size = UDim2.new(1, 16, 1, 16)
+GlowEffect.Position = UDim2.new(0, -8, 0, -8)
+GlowEffect.BackgroundColor3 = NeonPurple
+GlowEffect.BackgroundTransparency = 0.75
+GlowEffect.BorderSizePixel = 0
+GlowEffect.ZIndex = 9
+
+local GlowCorner = Instance.new("UICorner")
+GlowCorner.Parent = GlowEffect
+GlowCorner.CornerRadius = UDim.new(1, 0)
+
+-- Анимация свечения
+spawn(function()
+    while true do
+        if not MenuVisible then
+            for i = 0, 1, 0.02 do
+                GlowEffect.BackgroundTransparency = 0.75 - (i * 0.35)
+                wait(0.01)
+            end
+            for i = 0, 1, 0.02 do
+                GlowEffect.BackgroundTransparency = 0.4 + (i * 0.35)
+                wait(0.01)
+            end
+        else
+            GlowEffect.BackgroundTransparency = 0.35
+            wait(0.1)
+        end
+    end
+end)
+
+-- Подпись
+local MenuLabel = Instance.new("TextLabel")
+MenuLabel.Parent = MenuButton
+MenuLabel.Size = UDim2.new(0, 100, 0, 16)
+MenuLabel.Position = UDim2.new(0.5, -50, 1, 8)
+MenuLabel.BackgroundTransparency = 1
+MenuLabel.Text = "STARIG00"
+MenuLabel.TextColor3 = NeonPurple
+MenuLabel.TextSize = 10
+MenuLabel.Font = Enum.Font.GothamBlack
+MenuLabel.TextTransparency = 0.5
+MenuLabel.ZIndex = 10
+
+-- Обработчик кнопки меню
+local function onMenuButtonTouched(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
+        MenuVisible = not MenuVisible
+        
+        if MenuVisible then
+            MainFrame.Size = UDim2.new(0, 0, 0, 0)
+            MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+            MainFrame.Visible = true
+            
+            TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, 340, 0, 460),
+                Position = UDim2.new(0.5, -170, 0.5, -230)
+            }):Play()
+            
+            TweenService:Create(IconContainer.Line1, TweenInfo.new(0.2), {
+                Rotation = 45,
+                Position = UDim2.new(0, 0, 0, 10)
+            }):Play()
+            TweenService:Create(IconContainer.Line2, TweenInfo.new(0.1), {
+                BackgroundTransparency = 1
+            }):Play()
+            TweenService:Create(IconContainer.Line3, TweenInfo.new(0.2), {
+                Rotation = -45,
+                Position = UDim2.new(0, 0, 0, 10)
+            }):Play()
+        else
+            TweenService:Create(MainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                Size = UDim2.new(0, 0, 0, 0),
+                Position = UDim2.new(0.5, 0, 0.5, 0)
+            }):Play()
+            
+            wait(0.2)
+            MainFrame.Visible = false
+            
+            TweenService:Create(IconContainer.Line1, TweenInfo.new(0.2), {
+                Rotation = 0,
+                Position = UDim2.new(0, 0, 0, 0)
+            }):Play()
+            TweenService:Create(IconContainer.Line2, TweenInfo.new(0.1), {
+                BackgroundTransparency = 0
+            }):Play()
+            TweenService:Create(IconContainer.Line3, TweenInfo.new(0.2), {
+                Rotation = 0,
+                Position = UDim2.new(0, 0, 0, 18)
+            }):Play()
+        end
+    end
+end
+
+MenuButton.InputBegan:Connect(onMenuButtonTouched)
+
+-- Неоновая рамка MainFrame
+local MainFrameStroke = Instance.new("UIStroke")
+MainFrameStroke.Parent = MainFrame
+MainFrameStroke.Color = NeonPurple
+MainFrameStroke.Thickness = 2.5
+MainFrameStroke.Transparency = 0.2
+MainFrameStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+-- Скругление
+local UICorner = Instance.new("UICorner")
+UICorner.Parent = MainFrame
+UICorner.CornerRadius = UDim.new(0, 12)
+
+-- Заголовок
+local TitleBar = Instance.new("Frame")
+TitleBar.Parent = MainFrame
+TitleBar.Size = UDim2.new(1, 0, 0, 40)
+TitleBar.BackgroundColor3 = MediumPurple
+TitleBar.BorderSizePixel = 0
+TitleBar.ZIndex = 6
+
+local TitleBarGradient = Instance.new("UIGradient")
+TitleBarGradient.Parent = TitleBar
+TitleBarGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(50, 10, 80)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 20, 120))
+})
+TitleBarGradient.Rotation = 90
+
+local AuthorLabel = Instance.new("TextLabel")
+AuthorLabel.Parent = TitleBar
+AuthorLabel.Size = UDim2.new(1, -40, 0, 25)
+AuthorLabel.Position = UDim2.new(0, 12, 0, 2)
+AuthorLabel.BackgroundTransparency = 1
+AuthorLabel.Text = "STARIG00 | NDS"
+AuthorLabel.TextColor3 = NeonPurple
+AuthorLabel.TextSize = 16
+AuthorLabel.Font = Enum.Font.GothamBlack
+AuthorLabel.TextXAlignment = Enum.TextXAlignment.Left
+AuthorLabel.ZIndex = 7
+
+local Subtitle = Instance.new("TextLabel")
+Subtitle.Parent = TitleBar
+Subtitle.Size = UDim2.new(1, -40, 0, 14)
+Subtitle.Position = UDim2.new(0, 12, 0, 24)
+Subtitle.BackgroundTransparency = 1
+Subtitle.Text = "v4.1 | Mobile"
+Subtitle.TextColor3 = LightPurple
+Subtitle.TextSize = 9
+Subtitle.Font = Enum.Font.GothamMedium
+Subtitle.TextXAlignment = Enum.TextXAlignment.Left
+Subtitle.TextTransparency = 0.4
+Subtitle.ZIndex = 7
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Parent = TitleBar
+CloseButton.Size = UDim2.new(0, 28, 0, 28)
+CloseButton.Position = UDim2.new(1, -34, 0, 6)
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 30, 30)
+CloseButton.Text = "✕"
+CloseButton.TextColor3 = WhiteColor
+CloseButton.TextSize = 14
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.BorderSizePixel = 0
+CloseButton.ZIndex = 8
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.Parent = CloseButton
+CloseCorner.CornerRadius = UDim.new(1, 0)
+
+CloseButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
+        MainFrame.Visible = false
+        MenuVisible = false
+        TweenService:Create(IconContainer.Line1, TweenInfo.new(0.2), {
+            Rotation = 0,
+            Position = UDim2.new(0, 0, 0, 0)
+        }):Play()
+        TweenService:Create(IconContainer.Line2, TweenInfo.new(0.1), {
+            BackgroundTransparency = 0
+        }):Play()
+        TweenService:Create(IconContainer.Line3, TweenInfo.new(0.2), {
+            Rotation = 0,
+            Position = UDim2.new(0, 0, 0, 18)
+        }):Play()
+    end
+end)
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.Parent = TitleBar
+TitleCorner.CornerRadius = UDim.new(0, 12)
+
+-- Контейнер с вкладками слева и контентом справа
+local MainContainer = Instance.new("Frame")
+MainContainer.Parent = MainFrame
+MainContainer.Size = UDim2.new(1, 0, 1, -50)
+MainContainer.Position = UDim2.new(0, 0, 0, 45)
+MainContainer.BackgroundTransparency = 1
+MainContainer.ZIndex = 6
+
+-- Левая панель вкладок
+local TabPanel = Instance.new("Frame")
+TabPanel.Parent = MainContainer
+TabPanel.Size = UDim2.new(0, 90, 1, -10)
+TabPanel.Position = UDim2.new(0, 5, 0, 5)
+TabPanel.BackgroundColor3 = Color3.fromRGB(30, 8, 50)
+TabPanel.BorderSizePixel = 0
+TabPanel.ZIndex = 6
+
+local TabPanelCorner = Instance.new("UICorner")
+TabPanelCorner.Parent = TabPanel
+TabPanelCorner.CornerRadius = UDim.new(0, 10)
+
+local TabPanelStroke = Instance.new("UIStroke")
+TabPanelStroke.Parent = TabPanel
+TabPanelStroke.Color = NeonPurple
+TabPanelStroke.Thickness = 1
+TabPanelStroke.Transparency = 0.5
+TabPanelStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+-- Вкладки
+local Tabs = {
+    {name = "🏃", tooltip = "Movement"},
+    {name = "👁", tooltip = "Visual"},
+    {name = "📍", tooltip = "Teleport"},
+    {name = "⚙", tooltip = "Server"}
+}
+local TabButtons = {}
+
+for i, tabData in ipairs(Tabs) do
+    local TabBtn = Instance.new("TextButton")
+    TabBtn.Parent = TabPanel
+    TabBtn.Size = UDim2.new(1, -10, 0, 55)
+    TabBtn.Position = UDim2.new(0, 5, 0, 8 + (i-1) * 62)
+    TabBtn.BackgroundColor3 = Color3.fromRGB(50, 10, 80)
+    TabBtn.Text = tabData.name
+    TabBtn.TextColor3 = WhiteColor
+    TabBtn.TextSize = 22
+    TabBtn.Font = Enum.Font.GothamBold
+    TabBtn.BorderSizePixel = 0
+    TabBtn.ZIndex = 7
+    TabBtn.AutoButtonColor = false
+    
+    local TabCorner = Instance.new("UICorner")
+    TabCorner.Parent = TabBtn
+    TabCorner.CornerRadius = UDim.new(0, 8)
+    
+    local TabStroke = Instance.new("UIStroke")
+    TabStroke.Parent = TabBtn
+    TabStroke.Color = NeonPurple
+    TabStroke.Thickness = 1
+    TabStroke.Transparency = 0.6
+    TabStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    
+    local TabLabel = Instance.new("TextLabel")
+    TabLabel.Parent = TabBtn
+    TabLabel.Size = UDim2.new(1, 0, 0, 14)
+    TabLabel.Position = UDim2.new(0, 0, 1, -16)
+    TabLabel.BackgroundTransparency = 1
+    TabLabel.Text = tabData.tooltip
+    TabLabel.TextColor3 = LightPurple
+    TabLabel.TextSize = 8
+    TabLabel.Font = Enum.Font.GothamMedium
+    TabLabel.TextTransparency = 0.3
+    TabLabel.ZIndex = 8
+    
+    table.insert(TabButtons, TabBtn)
+end
+
+-- Контейнер контента
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Parent = MainContainer
+ContentFrame.Size = UDim2.new(1, -100, 1, -10)
+ContentFrame.Position = UDim2.new(0, 97, 0, 5)
+ContentFrame.BackgroundColor3 = Color3.fromRGB(30, 8, 50)
+ContentFrame.BorderSizePixel = 0
+ContentFrame.ZIndex = 6
+
+local ContentCorner = Instance.new("UICorner")
+ContentCorner.Parent = ContentFrame
+ContentCorner.CornerRadius = UDim.new(0, 10)
+
+local ContentStroke = Instance.new("UIStroke")
+ContentStroke.Parent = ContentFrame
+ContentStroke.Color = NeonPurple
+ContentStroke.Thickness = 1
+ContentStroke.Transparency = 0.5
+ContentStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+-- Заголовок текущей вкладки
+local ContentTitle = Instance.new("TextLabel")
+ContentTitle.Parent = ContentFrame
+ContentTitle.Size = UDim2.new(1, -20, 0, 25)
+ContentTitle.Position = UDim2.new(0, 10, 0, 8)
+ContentTitle.BackgroundTransparency = 1
+ContentTitle.Text = "Movement"
+ContentTitle.TextColor3 = NeonPurple
+ContentTitle.TextSize = 16
+ContentTitle.Font = Enum.Font.GothamBold
+ContentTitle.TextXAlignment = Enum.TextXAlignment.Left
+ContentTitle.ZIndex = 7
+
+-- Разделитель
+local Divider = Instance.new("Frame")
+Divider.Parent = ContentFrame
+Divider.Size = UDim2.new(1, -20, 0, 1.5)
+Divider.Position = UDim2.new(0, 10, 0, 36)
+Divider.BackgroundColor3 = NeonPurple
+Divider.BorderSizePixel = 0
+Divider.BackgroundTransparency = 0.5
+Divider.ZIndex = 7
+
+-- Скроллируемая область контента
+local ContentScroll = Instance.new("ScrollingFrame")
+ContentScroll.Parent = ContentFrame
+ContentScroll.Size = UDim2.new(1, -10, 1, -45)
+ContentScroll.Position = UDim2.new(0, 5, 0, 40)
+ContentScroll.BackgroundTransparency = 1
+ContentScroll.ScrollBarThickness = 4
+ContentScroll.ScrollBarImageColor3 = NeonPurple
+ContentScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+ContentScroll.ZIndex = 6
+ContentScroll.Active = true
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = ContentScroll
+UIListLayout.Padding = UDim.new(0, 4)
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- Функции создания элементов
+function CreateButton(parent, text, callback)
+    local Button = Instance.new("TextButton")
+    Button.Parent = parent
+    Button.Size = UDim2.new(1, -10, 0, 36)
+    Button.BackgroundColor3 = MediumPurple
+    Button.Text = text
+    Button.TextColor3 = WhiteColor
+    Button.TextSize = 12
+    Button.Font = Enum.Font.GothamMedium
+    Button.BorderSizePixel = 0
+    Button.ZIndex = 6
+    Button.AutoButtonColor = false
+    
+    local BCorner = Instance.new("UICorner")
+    BCorner.Parent = Button
+    BCorner.CornerRadius = UDim.new(0, 8)
+    
+    local BStroke = Instance.new("UIStroke")
+    BStroke.Parent = Button
+    BStroke.Color = NeonPurple
+    BStroke.Thickness = 1
+    BStroke.Transparency = 0.5
+    BStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    
+    Button.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            TweenService:Create(Button, TweenInfo.new(0.08), {
+                BackgroundColor3 = NeonPurple
+            }):Play()
+            wait(0.08)
+            TweenService:Create(Button, TweenInfo.new(0.08), {
+                BackgroundColor3 = MediumPurple
+            }):Play()
+            callback()
+        end
+    end)
+    
+    return Button
+end
+
+function CreateToggle(parent, text, default, callback)
+    local Frame = Instance.new("Frame")
+    Frame.Parent = parent
+    Frame.Size = UDim2.new(1, -10, 0, 40)
+    Frame.BackgroundTransparency = 1
+    Frame.ZIndex = 6
+    
+    local Label = Instance.new("TextLabel")
+    Label.Parent = Frame
+    Label.Size = UDim2.new(0.65, 0, 1, 0)
+    Label.BackgroundTransparency = 1
+    Label.Text = text
+    Label.TextColor3 = WhiteColor
+    Label.TextSize = 12
+    Label.Font = Enum.Font.GothamMedium
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.ZIndex = 6
+    
+    local ToggleFrame = Instance.new("Frame")
+    ToggleFrame.Parent = Frame
+    ToggleFrame.Size = UDim2.new(0, 46, 0, 24)
+    ToggleFrame.Position = UDim2.new(1, -50, 0, 8)
+    ToggleFrame.BackgroundColor3 = default and NeonPurple or Color3.fromRGB(60, 20, 90)
+    ToggleFrame.ZIndex = 6
+    ToggleFrame.Active = true
+    
+    local ToggleStroke = Instance.new("UIStroke")
+    ToggleStroke.Parent = ToggleFrame
+    ToggleStroke.Color = LightPurple
+    ToggleStroke.Thickness = 1
+    ToggleStroke.Transparency = 0.3
+    ToggleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    
+    local ToggleCorner = Instance.new("UICorner")
+    ToggleCorner.Parent = ToggleFrame
+    ToggleCorner.CornerRadius = UDim.new(1, 0)
+    
+    local ToggleCircle = Instance.new("Frame")
+    ToggleCircle.Parent = ToggleFrame
+    ToggleCircle.Size = UDim2.new(0, 20, 0, 20)
+    ToggleCircle.Position = default and UDim2.new(1, -22, 0, 2) or UDim2.new(0, 2, 0, 2)
+    ToggleCircle.BackgroundColor3 = WhiteColor
+    ToggleCircle.ZIndex = 7
+    
+    local CircleCorner = Instance.new("UICorner")
+    CircleCorner.Parent = ToggleCircle
+    CircleCorner.CornerRadius = UDim.new(1, 0)
+    
+    local toggled = default
+    
+    ToggleFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            toggled = not toggled
+            ToggleFrame.BackgroundColor3 = toggled and NeonPurple or Color3.fromRGB(60, 20, 90)
+            ToggleCircle:TweenPosition(
+                toggled and UDim2.new(1, -22, 0, 2) or UDim2.new(0, 2, 0, 2),
+                "Out", "Quad", 0.15, true
+            )
+            callback(toggled)
+        end
+    end)
+    
+    return Frame
+end
+
+function CreateSlider(parent, text, min, max, default, callback)
+    local Frame = Instance.new("Frame")
+    Frame.Parent = parent
+    Frame.Size = UDim2.new(1, -10, 0, 55)
+    Frame.BackgroundTransparency = 1
+    Frame.ZIndex = 6
+    
+    local Label = Instance.new("TextLabel")
+    Label.Parent = Frame
+    Label.Size = UDim2.new(1, 0, 0, 18)
+    Label.BackgroundTransparency = 1
+    Label.Text = text .. ": " .. default
+    Label.TextColor3 = LightPurple
+    Label.TextSize = 11
+    Label.Font = Enum.Font.GothamMedium
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.ZIndex = 6
+    
+    local SliderFrame = Instance.new("Frame")
+    SliderFrame.Parent = Frame
+    SliderFrame.Size = UDim2.new(1, 0, 0, 6)
+    SliderFrame.Position = UDim2.new(0, 0, 0, 24)
+    SliderFrame.BackgroundColor3 = Color3.fromRGB(60, 15, 95)
+    SliderFrame.ZIndex = 6
+    SliderFrame.Active = true
+    
+    local SliderCorner = Instance.new("UICorner")
+    SliderCorner.Parent = SliderFrame
+    SliderCorner.CornerRadius = UDim.new(1, 0)
+    
+    local SliderFill = Instance.new("Frame")
+    SliderFill.Parent = SliderFrame
+    SliderFill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+    SliderFill.BackgroundColor3 = NeonPurple
+    SliderFill.ZIndex = 6
+    
+    local FillCorner = Instance.new("UICorner")
+    FillCorner.Parent = SliderFill
+    FillCorner.CornerRadius = UDim.new(1, 0)
+    
+    local SliderButton = Instance.new("TextButton")
+    SliderButton.Parent = SliderFrame
+    SliderButton.Size = UDim2.new(0, 16, 0, 16)
+    SliderButton.Position = UDim2.new((default - min) / (max - min), -8, 0, -5)
+    SliderButton.BackgroundColor3 = NeonPurple
+    SliderButton.Text = ""
+    SliderButton.BorderSizePixel = 0
+    SliderButton.ZIndex = 7
+    
+    local BtnCorner = Instance.new("UICorner")
+    BtnCorner.Parent = SliderButton
+    BtnCorner.CornerRadius = UDim.new(1, 0)
+    
+    local BtnStroke = Instance.new("UIStroke")
+    BtnStroke.Parent = SliderButton
+    BtnStroke.Color = LightPurple
+    BtnStroke.Thickness = 1.5
+    BtnStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    
+    local dragging = false
+    
+    SliderButton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or 
+                        input.UserInputType == Enum.UserInputType.Touch) then
+            local mousePos = UserInputService:GetMouseLocation()
+            local sliderPos = SliderFrame.AbsolutePosition.X
+            local sliderWidth = SliderFrame.AbsoluteSize.X
+            local percent = math.clamp((mousePos.X - sliderPos) / sliderWidth, 0, 1)
+            local value = min + (max - min) * percent
+            value = math.floor(value)
+            SliderFill.Size = UDim2.new(percent, 0, 1, 0)
+            SliderButton.Position = UDim2.new(percent, -8, 0, -5)
+            Label.Text = text .. ": " .. value
+            callback(value)
+        end
+    end)
+    
+    return Frame
+end
+
+-- Содержимое вкладок
+local MovementElements = {}
+local VisualElements = {}
+local TeleportElements = {}
+local ServerElements = {}
+
+-- Функция переключения вкладок
+local function SwitchTab(tabIndex, tabName)
+    for _, elem in pairs(MovementElements) do elem.Visible = false end
+    for _, elem in pairs(VisualElements) do elem.Visible = false end
+    for _, elem in pairs(TeleportElements) do elem.Visible = false end
+    for _, elem in pairs(ServerElements) do elem.Visible = false end
+    
+    if tabIndex == 1 then
+        for _, elem in pairs(MovementElements) do elem.Visible = true end
+    elseif tabIndex == 2 then
+        for _, elem in pairs(VisualElements) do elem.Visible = true end
+    elseif tabIndex == 3 then
+        for _, elem in pairs(TeleportElements) do elem.Visible = true end
+    elseif tabIndex == 4 then
+        for _, elem in pairs(ServerElements) do elem.Visible = true end
+    end
+    
+    ContentTitle.Text = tabName
+    
+    local totalHeight = 20
+    if tabIndex == 1 then totalHeight = #MovementElements * 48 end
+    if tabIndex == 2 then totalHeight = #VisualElements * 48 end
+    if tabIndex == 3 then totalHeight = #TeleportElements * 48 end
+    if tabIndex == 4 then totalHeight = #ServerElements * 48 end
+    ContentScroll.CanvasSize = UDim2.new(0, 0, 0, math.max(totalHeight, 350))
+end
+
+-- Создаем элементы Movement
+local function CreateMovementTab()
+    local elements = {}
+    local order = 1
+    
+    -- Скорость бега
+    local wsToggle = CreateToggle(ContentScroll, "⚡ Изменить скорость бега", false, function(state)
+        WalkSpeedEnabled = state
+        if Player.Character and Player.Character:FindFirstChild("Humanoid") then
+            if state then
+                Player.Character.Humanoid.WalkSpeed = WalkSpeedValue
+            else
+                Player.Character.Humanoid.WalkSpeed = DefaultWalkSpeed
+            end
+        end
+    end)
+    wsToggle.LayoutOrder = order; order = order + 1
+    table.insert(elements, wsToggle)
+    
+    local wsSlider = CreateSlider(ContentScroll, "🏃 Скорость бега", 16, 200, 16, function(value)
+        WalkSpeedValue = value
+        if WalkSpeedEnabled and Player.Character and Player.Character:FindFirstChild("Humanoid") then
+            Player.Character.Humanoid.WalkSpeed = value
+        end
+    end)
+    wsSlider.LayoutOrder = order; order = order + 1
+    table.insert(elements, wsSlider)
+    
+    -- Высота прыжка
+    local jpToggle = CreateToggle(ContentScroll, "🦘 Изменить высоту прыжка", false, function(state)
+        JumpPowerEnabled = state
+        if Player.Character and Player.Character:FindFirstChild("Humanoid") then
+            if state then
+                Player.Character.Humanoid.JumpPower = JumpPowerValue
+                Player.Character.Humanoid.UseJumpPower = true
+            else
+                Player.Character.Humanoid.JumpPower = DefaultJumpPower
+            end
+        end
+    end)
+    jpToggle.LayoutOrder = order; order = order + 1
+    table.insert(elements, jpToggle)
+    
+    local jpSlider = CreateSlider(ContentScroll, "📏 Высота прыжка", 50, 500, 50, function(value)
+        JumpPowerValue = value
+        if JumpPowerEnabled and Player.Character and Player.Character:FindFirstChild("Humanoid") then
+            Player.Character.Humanoid.JumpPower = value
+            Player.Character.Humanoid.UseJumpPower = true
+        end
+    end)
+    jpSlider.LayoutOrder = order; order = order + 1
+    table.insert(elements, jpSlider)
+    
+    -- Бесконечные прыжки
+    local ijToggle = CreateToggle(ContentScroll, "♾️ Бесконечные прыжки", false, function(state)
+        InfiniteJumpEnabled = state
+    end)
+    ijToggle.LayoutOrder = order; order = order + 1
+    table.insert(elements, ijToggle)
+    
+    -- Noclip
+    local ncToggle = CreateToggle(ContentScroll, "👻 Noclip", false, function(state)
+        NoclipEnabled = state
+    end)
+    ncToggle.LayoutOrder = order; order = order + 1
+    table.insert(elements, ncToggle)
+    
+    -- Fly
+    local flyToggle = CreateToggle(ContentScroll, "🦅 Fly", false, function(state)
+        FlyEnabled = state
+        if state then
+            StartFly()
+        else
+            StopFly()
+        end
+    end)
+    flyToggle.LayoutOrder = order; order = order + 1
+    table.insert(elements, flyToggle)
+    
+    local flySlider = CreateSlider(ContentScroll, "🚀 Скорость Fly", 10, 200, 50, function(value)
+        FlySpeed = value
+    end)
+    flySlider.LayoutOrder = order; order = order + 1
+    table.insert(elements, flySlider)
+    
+    -- Притягивание
+    local attrToggle = CreateToggle(ContentScroll, "🧲 Притягивать игроков", false, function(state)
+        AttractPlayersEnabled = state
+        if state then
+            StartAttract()
+        end
+    end)
+    attrToggle.LayoutOrder = order; order = order + 1
+    table.insert(elements, attrToggle)
+    
+    local attrSlider = CreateSlider(ContentScroll, "📡 Радиус притяжения", 10, 100, 50, function(value)
+        AttractRadius = value
+    end)
+    attrSlider.LayoutOrder = order; order = order + 1
+    table.insert(elements, attrSlider)
+    
+    return elements
+end
+
+-- Создаем элементы Visual
+local function CreateVisualTab()
+    local elements = {}
+    
+    local espToggle = CreateToggle(ContentScroll, "👁 ESP Игроков", false, function(state)
+        ESPEnabled = state
+        if state then
+            EnableESP()
+        else
+            DisableESP()
+        end
+    end)
+    espToggle.LayoutOrder = 1
+    table.insert(elements, espToggle)
+    
+    return elements
+end
+
+-- Создаем элементы Teleport
+local function CreateTeleportTab()
+    local elements = {}
+    
+    local btn1 = CreateButton(ContentScroll, "📍 Телепорт к игроку", function()
+        if SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+                Player.Character.HumanoidRootPart.CFrame = SelectedPlayer.Character.HumanoidRootPart.CFrame
+            end
+        end
+    end)
+    btn1.LayoutOrder = 1
+    table.insert(elements, btn1)
+    
+    local btn2 = CreateButton(ContentScroll, "📥 Телепорт игрока к себе", function()
+        if SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+                SelectedPlayer.Character.HumanoidRootPart.CFrame = Player.Character.HumanoidRootPart.CFrame
+            end
+        end
+    end)
+    btn2.LayoutOrder = 2
+    table.insert(elements, btn2)
+    
+    -- Список игроков
+    local PlayerListFrame = Instance.new("Frame")
+    PlayerListFrame.Parent = ContentScroll
+    PlayerListFrame.Size = UDim2.new(1, -10, 0, 200)
+    PlayerListFrame.BackgroundTransparency = 1
+    PlayerListFrame.LayoutOrder = 3
+    PlayerListFrame.ZIndex = 6
+    table.insert(elements, PlayerListFrame)
+    
+    local PlayerListLabel = Instance.new("TextLabel")
+    PlayerListLabel.Parent = PlayerListFrame
+    PlayerListLabel.Size = UDim2.new(1, 0, 0, 18)
+    PlayerListLabel.BackgroundTransparency = 1
+    PlayerListLabel.Text = "👥 Игроки:"
+    PlayerListLabel.TextColor3 = LightPurple
+    PlayerListLabel.TextSize = 11
+    PlayerListLabel.Font = Enum.Font.GothamMedium
+    PlayerListLabel.TextXAlignment = Enum.TextXAlignment.Left
+    PlayerListLabel.ZIndex = 6
+    
+    local PlayerScrolling = Instance.new("ScrollingFrame")
+    PlayerScrolling.Parent = PlayerListFrame
+    PlayerScrolling.Size = UDim2.new(1, 0, 1, -22)
+    PlayerScrolling.Position = UDim2.new(0, 0, 0, 20)
+    PlayerScrolling.BackgroundTransparency = 1
+    PlayerScrolling.ScrollBarThickness = 3
+    PlayerScrolling.ScrollBarImageColor3 = NeonPurple
+    PlayerScrolling.CanvasSize = UDim2.new(0, 0, 0, 0)
+    PlayerScrolling.ZIndex = 6
+    PlayerScrolling.Active = true
+    
+    local PlayerListLayout = Instance.new("UIListLayout")
+    PlayerListLayout.Parent = PlayerScrolling
+    PlayerListLayout.Padding = UDim.new(0, 2)
+    PlayerListLayout.SortOrder = Enum.SortOrder.Name
+    
+    local function UpdatePlayerList()
+        for _, child in pairs(PlayerScrolling:GetChildren()) do
+            if child:IsA("TextButton") then
+                child:Destroy()
+            end
+        end
+        
+        local ySize = 0
+        for _, plr in pairs(game:GetService("Players"):GetPlayers()) do
+            if plr ~= Player then
+                local PlrBtn = Instance.new("TextButton")
+                PlrBtn.Parent = PlayerScrolling
+                PlrBtn.Size = UDim2.new(1, 0, 0, 30)
+                PlrBtn.BackgroundColor3 = MediumPurple
+                PlrBtn.Text = plr.Name
+                PlrBtn.TextColor3 = WhiteColor
+                PlrBtn.TextSize = 11
+                PlrBtn.Font = Enum.Font.GothamMedium
+                PlrBtn.BorderSizePixel = 0
+                PlrBtn.ZIndex = 6
+                PlrBtn.AutoButtonColor = false
+                
+                local corner = Instance.new("UICorner")
+                corner.Parent = PlrBtn
+                corner.CornerRadius = UDim.new(0, 6)
+                
+                PlrBtn.InputBegan:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+                       input.UserInputType == Enum.UserInputType.Touch then
+                        SelectedPlayer = plr
+                        for _, btn in pairs(PlayerScrolling:GetChildren()) do
+                            if btn:IsA("TextButton") then
+                                btn.BackgroundColor3 = MediumPurple
+                            end
+                        end
+                        PlrBtn.BackgroundColor3 = NeonPurple
+                    end
+                end)
+                
+                ySize = ySize + 32
+            end
+        end
+        PlayerScrolling.CanvasSize = UDim2.new(0, 0, 0, ySize)
+    end
+    
+    UpdatePlayerList()
+    game:GetService("Players").PlayerAdded:Connect(UpdatePlayerList)
+    game:GetService("Players").PlayerRemoving:Connect(function()
+        UpdatePlayerList()
+        if SelectedPlayer and not SelectedPlayer.Parent then
+            SelectedPlayer = nil
+        end
+    end)
+    
+    return elements
+end
+
+-- Создаем элементы Server
+local function CreateServerTab()
+    local elements = {}
+    
+    local btn1 = CreateButton(ContentScroll, "💀 Респавн", function()
+        if Player.Character and Player.Character:FindFirstChild("Humanoid") then
+            Player.Character.Humanoid.Health = 0
+        end
+    end)
+    btn1.LayoutOrder = 1
+    table.insert(elements, btn1)
+    
+    local btn2 = CreateButton(ContentScroll, "💜 Восстановить HP", function()
+        if Player.Character and Player.Character:FindFirstChild("Humanoid") then
+            Player.Character.Humanoid.Health = Player.Character.Humanoid.MaxHealth
+        end
+    end)
+    btn2.LayoutOrder = 2
+    table.insert(elements, btn2)
+    
+    return elements
+end
+
+-- Инициализируем вкладки
+MovementElements = CreateMovementTab()
+VisualElements = CreateVisualTab()
+TeleportElements = CreateTeleportTab()
+ServerElements = CreateServerTab()
+
+-- Изначально показываем Movement
+SwitchTab(1, "Movement")
+
+-- Обработчики вкладок
+for i, tabBtn in ipairs(TabButtons) do
+    tabBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            for _, btn in pairs(TabButtons) do
+                btn.BackgroundColor3 = Color3.fromRGB(50, 10, 80)
+                btn.UIStroke.Transparency = 0.6
+            end
+            tabBtn.BackgroundColor3 = NeonPurple
+            tabBtn.UIStroke.Transparency = 0
+            SwitchTab(i, Tabs[i].tooltip)
+        end
+    end)
+end
+
+-- ============================================
+-- ИСПРАВЛЕННЫЙ FLY С ПОДДЕРЖКОЙ ВЗЛЁТА
+-- ============================================
+function StartFly()
+    if FlyConnection then
+        FlyConnection:Disconnect()
+        FlyConnection = nil
+    end
+    
+    local char = Player.Character or Player.CharacterAdded:Wait()
+    if not char then return end
+    
+    local humanoid = char:WaitForChild("Humanoid")
+    local rootPart = char:WaitForChild("HumanoidRootPart")
+    
+    -- Удаляем старые если есть
+    if FlyBodyGyro then FlyBodyGyro:Destroy() end
+    if FlyBodyVelocity then FlyBodyVelocity:Destroy() end
+    
+    -- Создаём BodyGyro для контроля направления
+    FlyBodyGyro = Instance.new("BodyGyro")
+    FlyBodyGyro.Parent = rootPart
+    FlyBodyGyro.MaxTorque = Vector3.new(400000, 400000, 400000)
+    FlyBodyGyro.P = 3000
+    FlyBodyGyro.D = 500
+    FlyBodyGyro.CFrame = rootPart.CFrame
+    
+    -- Создаём BodyVelocity для движения
+    FlyBodyVelocity = Instance.new("BodyVelocity")
+    FlyBodyVelocity.Parent = rootPart
+    FlyBodyVelocity.MaxForce = Vector3.new(400000, 400000, 400000)
+    FlyBodyVelocity.P = 3000
+    FlyBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    
+    -- Основной цикл Fly через RenderStepped
+    FlyConnection = RunService.RenderStepped:Connect(function()
+        if not FlyEnabled or not char or not char.Parent or not rootPart or not rootPart.Parent then
+            StopFly()
+            return
+        end
+        
+        -- Включаем PlatformStand чтобы отключить стандартную физику
+        humanoid.PlatformStand = true
+        
+        -- Направление камеры
+        local cameraCFrame = Camera.CFrame
+        FlyBodyGyro.CFrame = CFrame.new(rootPart.Position, rootPart.Position + cameraCFrame.LookVector)
+        
+        -- Вектор движения
+        local moveVector = Vector3.zero
+        local flying = false
+        
+        -- Клавиатурное управление (для ПК и клавиатур)
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveVector += cameraCFrame.LookVector
+            flying = true
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveVector -= cameraCFrame.LookVector
+            flying = true
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveVector -= cameraCFrame.RightVector
+            flying = true
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveVector += cameraCFrame.RightVector
+            flying = true
+        end
+        
+        -- ВВЕРХ - ПРОБЕЛ (самое важное исправление!)
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveVector += Vector3.new(0, 1, 0)
+            flying = true
+        end
+        
+        -- ВНИЗ - LeftShift или LeftControl
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            moveVector -= Vector3.new(0, 1, 0)
+            flying = true
+        end
+        
+        -- Мобильное управление через MoveDirection (джойстик)
+        if not flying and humanoid.MoveDirection.Magnitude > 0 then
+            local moveDir = humanoid.MoveDirection
+            -- Конвертируем 2D направление в 3D относительно камеры
+            local cameraForward = Vector3.new(cameraCFrame.LookVector.X, 0, cameraCFrame.LookVector.Z).Unit
+            local cameraRight = Vector3.new(cameraCFrame.RightVector.X, 0, cameraCFrame.RightVector.Z).Unit
+            
+            moveVector = cameraForward * moveDir.Z + cameraRight * moveDir.X
+            
+            -- Если смотрит вверх - летим вверх по направлению камеры
+            if cameraCFrame.LookVector.Y > 0.3 then
+                moveVector += Vector3.new(0, cameraCFrame.LookVector.Y, 0)
+            end
+            -- Если смотрит вниз - летим вниз
+            if cameraCFrame.LookVector.Y < -0.3 then
+                moveVector += Vector3.new(0, cameraCFrame.LookVector.Y, 0)
+            end
+            
+            flying = true
+        end
+        
+        -- Применяем скорость
+        if flying then
+            FlyBodyVelocity.Velocity = moveVector.Unit * FlySpeed
+        else
+            -- Зависаем на месте
+            FlyBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        end
+    end)
+end
+
+function StopFly()
+    if FlyConnection then
+        FlyConnection:Disconnect()
+        FlyConnection = nil
+    end
+    if FlyBodyGyro then
+        FlyBodyGyro:Destroy()
+        FlyBodyGyro = nil
+    end
+    if FlyBodyVelocity then
+        FlyBodyVelocity:Destroy()
+        FlyBodyVelocity = nil
+    end
+    if Player.Character and Player.Character:FindFirstChild("Humanoid") then
+        Player.Character.Humanoid.PlatformStand = false
+    end
+end
+
+-- ============================================
+-- ПРИТЯГИВАНИЕ ИГРОКОВ
+-- ============================================
+function StartAttract()
+    spawn(function()
+        while AttractPlayersEnabled do
+            if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+                local root = Player.Character.HumanoidRootPart
+                for _, plr in pairs(game:GetService("Players"):GetPlayers()) do
+                    if plr ~= Player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                        local targetRoot = plr.Character.HumanoidRootPart
+                        local distance = (targetRoot.Position - root.Position).Magnitude
+                        if distance <= AttractRadius and distance > 3 then
+                            local direction = (root.Position - targetRoot.Position).Unit
+                            local force = math.min((AttractRadius - distance) / AttractRadius, 1) * 2
+                            targetRoot.Velocity = direction * force * 25
+                            targetRoot.CFrame = targetRoot.CFrame + direction * force * 0.5
+                        end
+                    end
+                end
+            end
+            wait(0.05)
+        end
+    end)
+end
+
+-- ============================================
+-- ESP
+-- ============================================
+local ESPTable = {}
+
+function EnableESP()
+    local function CreateESP(plr)
+        if plr == Player then return end
+        if ESPTable[plr] then return end
+        
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "ESP_" .. plr.Name
+        highlight.FillColor = NeonPurple
+        highlight.FillTransparency = 0.5
+        highlight.OutlineColor = LightPurple
+        highlight.OutlineTransparency = 0
+        ESPTable[plr] = highlight
+        
+        if plr.Character then
+            highlight.Parent = plr.Character
+        end
+        
+        plr.CharacterAdded:Connect(function(char)
+            wait(0.1)
+            highlight.Parent = char
+        end)
+    end
+    
+    for _, plr in pairs(game:GetService("Players"):GetPlayers()) do
+        if plr ~= Player then
+            CreateESP(plr)
+        end
+    end
+    
+    game:GetService("Players").PlayerAdded:Connect(function(plr)
+        CreateESP(plr)
+    end)
+    
+    game:GetService("Players").PlayerRemoving:Connect(function(plr)
+        if ESPTable[plr] then
+            ESPTable[plr]:Destroy()
+            ESPTable[plr] = nil
+        end
+    end)
+end
+
+function DisableESP()
+    for plr, highlight in pairs(ESPTable) do
+        highlight:Destroy()
+    end
+    ESPTable = {}
+end
+
+-- ============================================
+-- ОБРАБОТЧИКИ
+-- ============================================
+
+-- Бесконечные прыжки
+UserInputService.JumpRequest:Connect(function()
+    if InfiniteJumpEnabled then
+        local char = Player.Character
+        if char and char:FindFirstChild("Humanoid") then
+            char.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+-- Noclip
+spawn(function()
+    while true do
+        if NoclipEnabled and Player.Character then
+            for _, part in pairs(Player.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+        end
+        RunService.Stepped:Wait()
+    end
+end)
+
+-- Мобильное управление Fly: двойной тап для взлёта
+local lastTapTime = 0
+UserInputService.TouchTap:Connect(function(touchPositions)
+    if FlyEnabled and #touchPositions == 1 then
+        local currentTime = tick()
+        if currentTime - lastTapTime < 0.3 then
+            -- Двойной тап - взлетаем вверх
+            if FlyBodyVelocity then
+                FlyBodyVelocity.Velocity = Vector3.new(0, FlySpeed, 0)
+                spawn(function()
+                    wait(0.5)
+                    if FlyEnabled and FlyBodyVelocity then
+                        FlyBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+                    end
+                end)
+            end
+        end
+        lastTapTime = currentTime
+    end
+end)
+
+-- Очистка при выходе
+Player.CharacterAdded:Connect(function(char)
+    if FlyEnabled then
+        wait(0.3)
+        StartFly()
+    end
+    
+    local humanoid = char:WaitForChild("Humanoid")
+    
+    -- Применяем сохранённые настройки
+    if WalkSpeedEnabled then
+        humanoid.WalkSpeed = WalkSpeedValue
+    end
+    if JumpPowerEnabled then
+        humanoid.JumpPower = JumpPowerValue
+        humanoid.UseJumpPower = true
+    end
+    
+    DefaultWalkSpeed = humanoid.WalkSpeed
+    DefaultJumpPower = humanoid.JumpPower
+end)
+
+print("OMEGA MENU v4.1 | Starig00 | Fly UP/DOWN исправлен | Speed & Jump добавлены")
+print("Управление Fly: W/S/A/D - движение, ПРОБЕЛ - вверх, SHIFT - вниз")
+print("Мобильное: джойстик + направление камеры, двойной тап - взлёт вверх")
